@@ -68,11 +68,14 @@ func (a *App) overview(w http.ResponseWriter, _ *http.Request) {
 	interlocks := make(map[string]any)
 	pumpCommands := make(map[string]any)
 	sections := make(map[string]any)
+	isolationProgress := make(map[string]any)
+	coordinator := a.IsolationSupervisor.Current()
 	for _, zone := range a.Network.List() {
 		candidate, _ := a.Interlock.Snapshot(zone.ID)
 		interlocks[zone.ID] = candidate
 		pumpCommands[zone.ID] = a.Pumps.CommandsForZone(zone.ID)
 		sections[zone.ID] = a.Topology.SectionsForZone(zone.ID)
+		isolationProgress[zone.ID] = coordinator.Progress(zone.ID)
 	}
 	stationDetails := make(map[string]any)
 	for _, item := range a.Stations.List() {
@@ -88,7 +91,7 @@ func (a *App) overview(w http.ResponseWriter, _ *http.Request) {
 	primaryAdmission, primaryOpen := a.Primary.Admission("xincheng", "B")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"zones": a.Network.List(), "stations": a.Stations.List(), "incidents": a.Protection.List(),
-		"isolations": a.Isolation.List(), "plans": a.Planner.Plans(), "audit_summary": auditSummary,
+		"isolations": a.Isolation.List(), "isolation_progress": isolationProgress, "plans": a.Planner.Plans(), "audit_summary": auditSummary,
 		"event_count": eventCount, "hydraulic_threshold": a.Balancer.Threshold(),
 		"interlocks": interlocks, "pump_commands": pumpCommands, "sections": sections,
 		"station_details": stationDetails, "hydraulic_incidents": a.LeakDetector.Incidents(),

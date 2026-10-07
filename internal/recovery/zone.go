@@ -26,11 +26,18 @@ func (r *ZoneRecovery) Begin(zoneID string) (network.Zone, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.connected[zoneID] = make(map[string]bool)
-	return r.state.Update(zoneID, func(zone *network.Zone) error {
+	zone, err := r.state.Update(zoneID, func(zone *network.Zone) error {
 		zone.RecoveryRevision++
 		zone.Phase = network.PhaseWarming
 		return nil
 	})
+	if err != nil {
+		return zone, err
+	}
+	// A zone leaving for recovery re-partitions the network; coordinators
+	// bound to the previous partition must freeze.
+	r.state.Repartition()
+	return zone, nil
 }
 
 func (r *ZoneRecovery) OnConnected(zoneID, stationID string) (network.Zone, error) {

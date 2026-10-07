@@ -21,48 +21,48 @@ import (
 )
 
 type App struct {
-	DataDirectory        string
-	Events               *store.EventLog
-	Audit                *audit.Recorder
-	AuditQuery           *audit.Query
-	Network              *network.State
-	Topology             *network.Topology
-	NetworkRegistry      *network.Registry
-	Stations             *station.Registry
-	Snapshots            *store.StationSnapshotStore
-	Interlock            *hydraulic.Interlock
-	Pumps                *pump.Service
-	PumpRunner           *pump.Runner
-	Pressure             *pump.PressureMonitor
-	Valves               *valve.Service
-	ValveOperations      *valve.Operations
-	Relief               *valve.ReliefService
-	Boundaries           *valve.BoundaryService
-	Primary              *valve.PrimaryService
-	Telemetry            *telemetry.Series
-	SnapshotsBuilder     *telemetry.SnapshotBuilder
-	FlowReceipts         *telemetry.FlowReceipts
-	Balancer             *hydraulic.Balancer
-	LeakDetector         *hydraulic.LeakDetector
-	LeakProtection       *protection.LeakProtection
-	Protection           *protection.Service
-	Latches              *protection.LatchStore
-	Frost                *protection.FrostProtection
-	ExchangerSwitch      *exchanger.SwitchService
-	Circulation          *exchanger.CirculationRunner
-	Antifreeze           *protection.Antifreeze
-	Warmup               *exchanger.WarmupService
-	Isolation            *isolation.Service
-	IsolationCoordinator *isolation.Coordinator
-	Targets              *station.TargetService
-	Planner              *dispatch.Planner
-	Publisher            *dispatch.Publisher
-	DispatchBuffer       *dispatch.Buffer
-	StationCommands      *station.CommandService
-	Reconnector          *recovery.Reconnector
-	ZoneRecovery         *recovery.ZoneRecovery
-	Manual               *station.ManualService
-	Maintenance          *station.MaintenanceService
+	DataDirectory       string
+	Events              *store.EventLog
+	Audit               *audit.Recorder
+	AuditQuery          *audit.Query
+	Network             *network.State
+	Topology            *network.Topology
+	NetworkRegistry     *network.Registry
+	Stations            *station.Registry
+	Snapshots           *store.StationSnapshotStore
+	Interlock           *hydraulic.Interlock
+	Pumps               *pump.Service
+	PumpRunner          *pump.Runner
+	Pressure            *pump.PressureMonitor
+	Valves              *valve.Service
+	ValveOperations     *valve.Operations
+	Relief              *valve.ReliefService
+	Boundaries          *valve.BoundaryService
+	Primary             *valve.PrimaryService
+	Telemetry           *telemetry.Series
+	SnapshotsBuilder    *telemetry.SnapshotBuilder
+	FlowReceipts        *telemetry.FlowReceipts
+	Balancer            *hydraulic.Balancer
+	LeakDetector        *hydraulic.LeakDetector
+	LeakProtection      *protection.LeakProtection
+	Protection          *protection.Service
+	Latches             *protection.LatchStore
+	Frost               *protection.FrostProtection
+	ExchangerSwitch     *exchanger.SwitchService
+	Circulation         *exchanger.CirculationRunner
+	Antifreeze          *protection.Antifreeze
+	Warmup              *exchanger.WarmupService
+	Isolation           *isolation.Service
+	IsolationSupervisor *isolation.Supervisor
+	Targets             *station.TargetService
+	Planner             *dispatch.Planner
+	Publisher           *dispatch.Publisher
+	DispatchBuffer      *dispatch.Buffer
+	StationCommands     *station.CommandService
+	Reconnector         *recovery.Reconnector
+	ZoneRecovery        *recovery.ZoneRecovery
+	Manual              *station.ManualService
+	Maintenance         *station.MaintenanceService
 }
 
 func NewApp(dataDirectory string) (*App, error) {
@@ -107,6 +107,7 @@ func NewApp(dataDirectory string) (*App, error) {
 	relief := valve.NewReliefService(2 * time.Millisecond)
 	boundaries := valve.NewBoundaryService()
 	isolationService := isolation.NewService(topology, networkState, relief, boundaries, recorder)
+	protectionService := protection.NewService()
 	targets := station.NewTargetService(stations)
 	planner := dispatch.NewPlanner(targets)
 	dispatchBuffer := dispatch.NewBuffer()
@@ -119,10 +120,11 @@ func NewApp(dataDirectory string) (*App, error) {
 		ValveOperations: valveOperations, Relief: relief, Boundaries: boundaries, Primary: primary,
 		Telemetry: telemetry.NewSeries(128), FlowReceipts: flowReceipts,
 		Balancer: hydraulic.NewBalancer(0.28), LeakDetector: hydraulic.NewLeakDetector(),
-		Protection: protection.NewService(), Latches: protection.NewLatchStore(snapshots),
+		Protection: protectionService, Latches: protection.NewLatchStore(snapshots),
 		Frost: protection.NewFrostProtection(valveOperations), Circulation: circulation, Antifreeze: antifreeze,
-		Warmup: warmup, Isolation: isolationService, IsolationCoordinator: isolation.NewCoordinator(isolationService),
-		Targets: targets, Planner: planner, DispatchBuffer: dispatchBuffer, StationCommands: stationCommands,
+		Warmup: warmup, Isolation: isolationService,
+		IsolationSupervisor: isolation.NewSupervisor(isolationService, networkState.Partition, protectionService.Generation),
+		Targets:             targets, Planner: planner, DispatchBuffer: dispatchBuffer, StationCommands: stationCommands,
 		Manual: station.NewManualService(valveOperations), Maintenance: station.NewMaintenanceService(stations, snapshots),
 	}
 	app.SnapshotsBuilder = telemetry.NewSnapshotBuilder(app.Telemetry)

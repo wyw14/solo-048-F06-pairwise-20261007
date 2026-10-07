@@ -34,8 +34,9 @@ func (z Zone) DifferentialPressure() float64 {
 }
 
 type State struct {
-	mu    sync.RWMutex
-	zones map[string]Zone
+	mu        sync.RWMutex
+	zones     map[string]Zone
+	partition uint64
 }
 
 func NewState(zones []Zone) *State {
@@ -44,7 +45,23 @@ func NewState(zones []Zone) *State {
 		zone.UpdatedAt = time.Now().UTC()
 		all[zone.ID] = zone
 	}
-	return &State{zones: all}
+	return &State{zones: all, partition: 1}
+}
+
+// Partition identifies the current network partitioning. Any change to how
+// the network is divided (for example a zone leaving for recovery) bumps it,
+// which must fence off coordinators bound to the previous partition.
+func (s *State) Partition() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.partition
+}
+
+func (s *State) Repartition() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.partition++
+	return s.partition
 }
 
 func (s *State) Get(zoneID string) (Zone, bool) {

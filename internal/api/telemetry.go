@@ -39,7 +39,7 @@ func (a *App) evaluateHydraulic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var protectionIncident any
-	var isolationSession any
+	var isolationProgress any
 	if incident != nil && incident.Confirmed {
 		raised, raiseErr := a.Protection.Raise(stationID, "hydraulic_leak", "critical", "confirmed mass imbalance")
 		if raiseErr != nil {
@@ -51,17 +51,17 @@ func (a *App) evaluateHydraulic(w http.ResponseWriter, r *http.Request) {
 		if ok {
 			sections := a.Topology.SectionsForZone(stationState.ZoneID)
 			if len(sections) > 0 {
-				session, isolateErr := a.IsolationCoordinator.FromIncident(r.Context(), *incident, sections[0].ID)
+				progress, isolateErr := a.IsolationSupervisor.Current().IsolateZone(r.Context(), *incident, stationState.ZoneID, "leak-protection")
 				if isolateErr != nil {
 					writeError(w, http.StatusConflict, isolateErr)
 					return
 				}
-				isolationSession = session
+				isolationProgress = progress
 			}
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"snapshot": snapshot, "balance": balance, "incident": incident,
-		"protection_incident": protectionIncident, "isolation": isolationSession,
+		"protection_incident": protectionIncident, "isolation": isolationProgress,
 	})
 }

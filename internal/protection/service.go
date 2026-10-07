@@ -19,12 +19,29 @@ type Incident struct {
 }
 
 type Service struct {
-	mu        sync.RWMutex
-	incidents map[string]Incident
+	mu         sync.RWMutex
+	incidents  map[string]Incident
+	generation uint64
 }
 
 func NewService() *Service {
-	return &Service{incidents: make(map[string]Incident)}
+	return &Service{incidents: make(map[string]Incident), generation: 1}
+}
+
+// Generation is the protection generation （保护代次）. It increases whenever
+// the protection posture is reset, fencing off coordinators bound to the
+// previous generation.
+func (s *Service) Generation() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.generation
+}
+
+func (s *Service) BumpGeneration() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.generation++
+	return s.generation
 }
 
 func (s *Service) Raise(stationID, kind, severity, message string) (Incident, error) {

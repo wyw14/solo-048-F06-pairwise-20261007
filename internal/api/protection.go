@@ -63,6 +63,9 @@ func (a *App) resetLatches(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, err)
 		return
 	}
+	// Resetting protection latches rolls the protection generation; the
+	// isolation supervisor freezes coordinators bound to the old one.
+	a.Protection.BumpGeneration()
 	writeJSON(w, http.StatusOK, result)
 }
 

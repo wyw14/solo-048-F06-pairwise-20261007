@@ -19,8 +19,9 @@ type Incident struct {
 }
 
 type Service struct {
-	mu        sync.RWMutex
-	incidents map[string]Incident
+	mu         sync.RWMutex
+	incidents  map[string]Incident
+	generation uint64
 }
 
 func NewService() *Service {
@@ -37,6 +38,7 @@ func (s *Service) Raise(stationID, kind, severity, message string) (Incident, er
 	}
 	s.mu.Lock()
 	s.incidents[incident.ID] = incident
+	s.generation++
 	s.mu.Unlock()
 	return incident, nil
 }
@@ -50,7 +52,16 @@ func (s *Service) Resolve(incidentID string) (Incident, error) {
 	}
 	incident.Active = false
 	s.incidents[incidentID] = incident
+	s.generation++
 	return incident, nil
+}
+
+// Generation is the protection epoch: it advances on every protection state
+// change, so coordinators bound to an older generation know to freeze.
+func (s *Service) Generation() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.generation
 }
 
 func (s *Service) List() []Incident {

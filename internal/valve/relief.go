@@ -25,18 +25,29 @@ func NewReliefService(delay time.Duration) *ReliefService {
 }
 
 func (s *ReliefService) Open(ctx context.Context, valveID, sessionID string) (ReliefProof, error) {
-	if s.delay < 0 {
+	s.mu.RLock()
+	delay := s.delay
+	s.mu.RUnlock()
+	if delay < 0 {
 		return ReliefProof{}, fmt.Errorf("relief valve %s driver unavailable", valveID)
 	}
 	select {
 	case <-ctx.Done():
 		return ReliefProof{}, ctx.Err()
-	case <-time.After(s.delay):
+	case <-time.After(delay):
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.position[valveID] = true
 	return ReliefProof{ValveID: valveID, SessionID: sessionID, Open: true, At: time.Now().UTC()}, nil
+}
+
+// SetDelay adjusts the simulated driver latency. A negative delay marks the
+// driver unavailable, which simulates a relief fault during drills.
+func (s *ReliefService) SetDelay(delay time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delay = delay
 }
 
 func (s *ReliefService) IsOpen(valveID string) bool {

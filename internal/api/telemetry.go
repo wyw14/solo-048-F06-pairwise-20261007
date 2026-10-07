@@ -51,7 +51,7 @@ func (a *App) evaluateHydraulic(w http.ResponseWriter, r *http.Request) {
 		if ok {
 			sections := a.Topology.SectionsForZone(stationState.ZoneID)
 			if len(sections) > 0 {
-				session, isolateErr := a.IsolationCoordinator.FromIncident(r.Context(), *incident, sections[0].ID)
+				session, isolateErr := a.IsolationSupervisor.Current().FromIncident(r.Context(), *incident, sections[0].ID)
 				if isolateErr != nil {
 					writeError(w, http.StatusConflict, isolateErr)
 					return

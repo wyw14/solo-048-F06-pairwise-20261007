@@ -54,12 +54,37 @@ func (a *App) isolateSection(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	session, err := a.Isolation.Isolate(r.Context(), chi.URLParam(r, "sectionID"), input.Actor)
+	session, err := a.IsolationSupervisor.Current().Begin(r.Context(), chi.URLParam(r, "sectionID"), input.Actor)
 	if err != nil {
 		writeError(w, http.StatusConflict, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, session)
+}
+
+func (a *App) resumeIsolation(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Actor string `json:"actor"`
+	}
+	if err := decodeJSON(r, &input); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	session, err := a.IsolationSupervisor.Current().Resume(r.Context(), chi.URLParam(r, "sessionID"), input.Actor)
+	if err != nil {
+		writeError(w, http.StatusConflict, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+func (a *App) isolationProgress(w http.ResponseWriter, r *http.Request) {
+	progress, err := a.Isolation.Progress(chi.URLParam(r, "sessionID"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, progress)
 }
 
 func (a *App) overview(w http.ResponseWriter, _ *http.Request) {
@@ -92,7 +117,8 @@ func (a *App) overview(w http.ResponseWriter, _ *http.Request) {
 		"event_count": eventCount, "hydraulic_threshold": a.Balancer.Threshold(),
 		"interlocks": interlocks, "pump_commands": pumpCommands, "sections": sections,
 		"station_details": stationDetails, "hydraulic_incidents": a.LeakDetector.Incidents(),
-		"east_relief_open": a.Relief.IsOpen("east-rv"),
+		"isolation_coordinator": a.IsolationSupervisor.Current().Info(),
+		"east_relief_open":      a.Relief.IsOpen("east-rv"),
 		"east_boundaries_closed": map[string]bool{
 			"east-bv-a": a.Boundaries.IsClosed("east-bv-a"),
 			"east-bv-b": a.Boundaries.IsClosed("east-bv-b"),
